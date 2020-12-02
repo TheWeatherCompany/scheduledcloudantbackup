@@ -3,7 +3,7 @@ const stream = require('stream')
 const url = require('url')
 const AWS = require('aws-sdk')
 const couchbackup = require('@cloudant/couchbackup')
-const debug = require('debug')('scheduledcloudantbackup')
+// const debug = require('debug')('scheduledcloudantbackup')
 
 /*
   Main function, run from base of file.
@@ -14,6 +14,7 @@ const main = async () => {
   const backupBucket = process.env.COS_BUCKET
   const backupKey = `${backupName}-${new Date().toISOString()}`
   const s3Endpoint = process.env.COS_ENDPOINT_URL
+  const backupFilename = process.env.COS_OBJECT_FILENAME
 
   // Creds are from ~/.aws/credentials, environment etc. (see S3 docs).
   const awsOpts = {
@@ -23,15 +24,15 @@ const main = async () => {
   const s3 = new AWS.S3(awsOpts)
 
   // do the restore
-  debug(`Creating a new backup of ${s(sourceUrl)} at ${backupBucket}/${backupKey}...`)
+  console.log(`Creating a new backup of ${s(sourceUrl)} at ${backupBucket}/${backupKey}...`)
   try {
     const accessible = await bucketAccessible(s3, backupBucket)
     if (accessible) {
-      await backupToS3(sourceUrl, s3, backupBucket, backupKey, false)
-      debug('done.')
+      await backupToS3(sourceUrl, s3, backupBucket, backupKey, backupFilename, false)
+      console.log('done.')
     }
   } catch (error) {
-    debug(`Error: ${error}`)
+    console.log(`Error: ${error}`)
     process.exit(1)
   }
 }
@@ -62,45 +63,45 @@ const bucketAccessible = async (s3, bucketName) => {
  * @param {any} shallow Whether to use the couchbackup `shallow` mode
  * @returns Promise
  */
-const backupToS3 = async (sourceUrl, s3Client, s3Bucket, s3Key, shallow) => {
+const backupToS3 = async (sourceUrl, s3Client, s3Bucket, s3Key, objectName, shallow) => {
   return new Promise((resolve, reject) => {
-    debug(`Setting up S3 upload to ${s3Bucket}/${s3Key}`)
+    console.log(`Setting up S3 upload to ${s3Bucket}/${s3Key}`)
 
     // A pass through stream that has couchbackup's output
     // written to it and it then read by the S3 upload client.
     // It has a 64MB highwater mark to allow for fairly
     // uneven network connectivity.
-    const streamToUpload = new stream.PassThrough({ highWaterMark: 67108864 })
+    // const streamToUpload = new stream.PassThrough({ highWaterMark: 67108864 })
 
     // Set up S3 download.
     const params = {
       Bucket: s3Bucket,
-      Key: s3Key,
-      Body: streamToUpload
+      Key: backupFilename
+      // IfMatch: objectName,
     }
-    s3Client.getObject(params, function (err, data) {
-      debug('Object store download done')
+    const streamToUpload = s3Client.getObject(params, function (err, data) {
+      console.log('Object store download done')
       if (err) {
-        debug(err)
+        console.log(err)
         reject(new Error('Object store download failed'))
         return
       }
-      debug('Object store download succeeded')
-      debug(data)
+      console.log('Object store download succeeded')
+      console.log(data)
       resolve()
-    })
+    }).createReadStream();
 
-    debug(`Starting streaming data from ${s(sourceUrl)}`)
+    console.log(`Starting streaming data to ${s(sourceUrl)}`)
     couchbackup.restore(
-      sourceUrl,
       streamToUpload,
+      sourceUrl,
       (err, obj) => {
         if (err) {
-          debug(err)
+          console.log(err)
           reject(new Error(err, 'CouchRestore failed with an error'))
           return
         }
-        debug(`Upload to ${s(sourceUrl)} complete.`)
+        console.log(`Upload to ${s(sourceUrl)} complete.`)
         streamToUpload.end() // must call end() to complete upload.
         // resolve() is called by the upload
       }
