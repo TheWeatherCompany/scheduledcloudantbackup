@@ -2,11 +2,11 @@
   "name": "scheduledcloudantbackup",
   "version": "1.0.0",
   "description": "Script to perform a Cloudant backup to Cloud Object Storage",
-  "main": "backup.js",
+  "main": "restore.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "standard": "standard --fix",
-    "start": "node backup"
+    "start": "node restore"
   },
   "repository": {
     "type": "git",
